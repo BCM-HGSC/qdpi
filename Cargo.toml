@@ -1,0 +1,22 @@
+[package]
+name = "qdpi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+rust-htslib = { version = "0.46.0" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0.96" }
+crossbeam-channel = { version = "0.5.12" }
+indexmap = "2.2.3"
+indicatif = "0.17.8"
+pretty_env_logger = { version = "0.4.0" }
+log = { version = "0.4", features = ["std", "serde"] }
+ordered-float = { version = "4.0", default-features = false }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = 3
