@@ -53,16 +53,8 @@ fn main() -> std::io::Result<()> {
             for (chrom, mut start, mut end) in receiver.into_iter().flatten() {
                 start -= m_args.buffer;
                 end += m_args.buffer;
-                let (reads, plups, coverage) = m_bam.extract_reads_plup(&chrom, start, end);
-                let deltas: Vec<_> = reads.values().collect();
-                let mut alt_ps = Vec::<(usize, Vec<String>)>::new();
-                for (p, _, a) in plups {
-                    let shift_p = (p - start) as usize;
-                    if !a.is_empty() {
-                        alt_ps.push((shift_p, a))
-                    }
-                }
-                let data = (coverage, alt_ps, deltas);
+                let data = m_bam.extract_reads_plup(&chrom, start, end);
+
                 let json_str = match serde_json::to_string(&data) {
                     Ok(json) => json,
                     Err(e) => {

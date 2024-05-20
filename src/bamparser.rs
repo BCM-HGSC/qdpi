@@ -13,6 +13,7 @@ pub struct BamParser {
     args: ArgParser,
 }
 
+type DataTuple = (u64, Vec<(u64, Vec<String>)>, Vec<isize>);
 impl BamParser {
     // Need the params to be passed here
     pub fn new(bam_name: PathBuf, args: ArgParser) -> Self {
@@ -25,20 +26,16 @@ impl BamParser {
         chrom: &String,
         start: u64,
         end: u64,
-    ) -> (HashMap<String, isize>, Vec<(u64, u32, Vec<String>)>, u64) {
+    ) -> DataTuple {
         let mut tot_cov: u64 = 0;
         if let Err(e) = self.bam.fetch((&chrom, start, end)) {
             panic!("Unable to fetch bam {}:{}-{}\n{:?}", chrom, start, end, e)
         };
 
         // track the changes made by each read
-        let mut m_reads = HashMap::<String, isize>::new();
-        let mut plups = Vec::<(u64, u32, Vec<String>)>::new();
-        for pileup in self.bam.pileup() {
-            if pileup.is_err() {
-                continue;
-            }
-            let pileup = pileup.unwrap();
+        let mut m_reads = HashMap::<Vec<u8>, isize>::new();
+        let mut plups = HashMap::<u64, Vec<String>>::new();
+        for pileup in self.bam.pileup().flatten() {
             let m_pos: u64 = pileup.pos().into();
             // We got to truncate the pileup
             if m_pos < start {
@@ -48,7 +45,6 @@ impl BamParser {
             if end < m_pos {
                 break;
             }
-            let mut ps = Vec::new();
             for alignment in pileup.alignments() {
                 if alignment.record().seq().is_empty()
                     || alignment.qpos().is_none()
@@ -72,15 +68,16 @@ impl BamParser {
                     Indel::Del(size) => (-(size as isize), format!("-{}", size)),
                     _ => continue,
                 };
-                ps.push(m_seq);
-                let qname = String::from_utf8_lossy(alignment.record().qname()).to_string();
-                //let qname = alignment.record().qname().to_owned();
+                plups.entry(m_pos - start).or_default().push(m_seq);
+                let qname = alignment.record().qname().to_owned();
                 *m_reads.entry(qname).or_insert(0) += m_var;
             }
-            plups.push((m_pos, pileup.depth(), ps));
         }
 
         let coverage = (tot_cov / (end - start)).max(m_reads.len() as u64);
-        (m_reads, plups, coverage)
+        let plups = plups.into_iter().collect();
+        let deltas: Vec<_> = m_reads.into_values().collect();
+
+        (coverage, plups, deltas)
     }
 }
