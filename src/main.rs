@@ -106,7 +106,7 @@ fn main() -> std::io::Result<()> {
             recv(result_receiver) -> result => {
                 match result {
                     Ok((chrom, start, end, json_str)) => {
-                        write!(file, "{}\t{}\t{}\t{}\n", chrom, start, end, json_str)?;
+                        writeln!(file, "{}\t{}\t{}\t{}", chrom, start, end, json_str)?;
                         pbar.inc(1);
                         collected += 1;
                         if collected == num_regions {
