@@ -35,7 +35,7 @@ pub struct ArgParser {
 
     /// Buffer around regions to plup
     #[arg(long, default_value_t = 50)]
-    pub buffer: u64
+    pub buffer: u64,
 }
 
 impl ArgParser {

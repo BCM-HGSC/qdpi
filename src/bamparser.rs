@@ -3,32 +3,29 @@ use rust_htslib::{
     bam::ext::BamRecordExtensions,
     bam::pileup::Indel,
     bam::{IndexedReader, Read},
-    faidx,
 };
 
-use crate::locus::Locus;
-use std::path::PathBuf;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 pub struct BamParser {
     bam: IndexedReader,
-    reference: faidx::Reader,
     args: ArgParser,
 }
 
 impl BamParser {
     // Need the params to be passed here
-    pub fn new(bam_name: PathBuf, ref_name: PathBuf, args: ArgParser) -> Self {
+    pub fn new(bam_name: PathBuf, args: ArgParser) -> Self {
         let bam = IndexedReader::from_path(bam_name).unwrap();
-        let reference = faidx::Reader::from_path(ref_name).unwrap();
-        BamParser {
-            bam,
-            reference,
-            args,
-        }
+        BamParser { bam, args }
     }
 
-    pub fn extract_reads_plup(&mut self, chrom: &String, start: u64, end: u64) -> (HashMap::<String, isize>, Vec<(u64, u32, Vec<String>)>, u64) {
+    pub fn extract_reads_plup(
+        &mut self,
+        chrom: &String,
+        start: u64,
+        end: u64,
+    ) -> (HashMap<String, isize>, Vec<(u64, u32, Vec<String>)>, u64) {
         let mut tot_cov: u64 = 0;
         if let Err(e) = self.bam.fetch((&chrom, start, end)) {
             panic!("Unable to fetch bam {}:{}-{}\n{:?}", chrom, start, end, e)
@@ -53,11 +50,12 @@ impl BamParser {
             }
             let mut ps = Vec::new();
             for alignment in pileup.alignments() {
-                if alignment.record().seq().is_empty() || alignment.qpos().is_none()
+                if alignment.record().seq().is_empty()
+                    || alignment.qpos().is_none()
                     || alignment.record().mapq() < self.args.mapq
                     || (alignment.record().flags() & self.args.mapflag) != 0
                     || (!((alignment.record().reference_start() as u64) < start
-                            && (alignment.record().reference_end() as u64) > end))
+                        && (alignment.record().reference_end() as u64) > end))
                 {
                     continue;
                 }
@@ -66,15 +64,12 @@ impl BamParser {
                 let (m_var, m_seq) = match alignment.indel() {
                     Indel::Ins(size) => {
                         let qpos = alignment.qpos().unwrap();
-                        let seq =
-                            alignment.record().seq().as_bytes()[qpos..(qpos + size as usize)].to_vec();
+                        let seq = alignment.record().seq().as_bytes()[qpos..(qpos + size as usize)]
+                            .to_vec();
                         let seq = std::str::from_utf8(&seq).unwrap_or("").to_string();
                         (size as isize, seq)
-                    },
-                    Indel::Del(size) => {
-                        (-(size as isize), format!("-{}", size))
-
                     }
+                    Indel::Del(size) => (-(size as isize), format!("-{}", size)),
                     _ => continue,
                 };
                 ps.push(m_seq);
