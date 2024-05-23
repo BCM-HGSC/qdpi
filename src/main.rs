@@ -53,7 +53,7 @@ fn main() -> std::io::Result<()> {
             for (chrom, mut start, mut end) in receiver.into_iter().flatten() {
                 start -= m_args.buffer;
                 end += m_args.buffer;
-                let data = m_bam.extract_reads_plup(&chrom, start, end);
+                let data = m_bam.extract_reads_plup_fast(&chrom, start, end);
 
                 let json_str = match serde_json::to_string(&data) {
                     Ok(json) => json,
