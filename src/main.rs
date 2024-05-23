@@ -59,7 +59,7 @@ fn main() -> std::io::Result<()> {
         let receiver = receiver.clone();
         let result_sender = result_sender.clone();
         thread::spawn(move || {
-            let mut m_bam = BamParser::new(m_args.bam.clone(), m_args.clone());
+            let mut m_bam = BamParser::new(m_args.bam.clone(), m_args.reference.clone(), m_args.clone());
             for (chrom, mut start, mut end) in receiver.into_iter().flatten() {
                 start -= m_args.buffer;
                 end += m_args.buffer;

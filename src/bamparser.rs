@@ -18,8 +18,11 @@ type DataTuple = (u64, [Vec<isize>; 3]);
 
 impl BamParser {
     // Need the params to be passed here
-    pub fn new(bam_name: PathBuf, args: ArgParser) -> Self {
-        let bam = IndexedReader::from_path(bam_name).unwrap();
+    pub fn new(bam_name: PathBuf, reference: Option<PathBuf>, args: ArgParser) -> Self {
+        let mut bam = IndexedReader::from_path(bam_name).unwrap();
+        if let Some(ref_name) = reference {
+            let _ = bam.set_reference(ref_name.clone());
+        }
         BamParser { bam, args }
     }
 

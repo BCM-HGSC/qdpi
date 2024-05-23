@@ -12,6 +12,10 @@ pub struct ArgParser {
     /// Regions to analyze
     #[arg(long)]
     pub bed: std::path::PathBuf,
+    
+    /// Reference path (for crams)
+    #[arg(long)]
+    pub reference: Option<std::path::PathBuf>,
 
     /// Output tsv
     #[arg(short, long)]
@@ -57,6 +61,16 @@ impl ArgParser {
         } else if !self.bed.is_file() {
             error!("--bed is not a file");
             is_ok = false;
+        }
+        
+        if let Some(refname) = &self.reference {
+            if !refname.exists() {
+                error!("--reference does not exist");
+                is_ok = false;
+            } else if !refname.is_file() {
+                error!("--reference is not a file");
+                is_ok = false;
+            }
         }
 
         is_ok
