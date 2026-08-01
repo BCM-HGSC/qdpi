@@ -24,6 +24,9 @@ type OutputType = String;
 
 // Joins a slice of isize into a comma-separated string
 fn join_isize(v: &[isize]) -> String {
+    if v.is_empty() {
+        return ".".to_string();
+    }
     v.iter()
         .map(|x| x.to_string())
         .collect::<Vec<String>>()
@@ -44,9 +47,14 @@ fn main() -> std::io::Result<()> {
         .init();
 
     args.validate();
-
-    let fh = File::create(args.out.clone())?;
-    let mut file = BufWriter::new(fh);
+    
+    let mut file: Box<dyn Write> = match args.out {
+        Some(ref path) => {
+            let file = File::create(path).expect("Error creating output file");
+            Box::new(BufWriter::new(file))
+        }
+        None => Box::new(BufWriter::new(std::io::stdout())),
+    };
 
     let mut m_parser = BedParser::new(&args.bed);
 
@@ -66,7 +74,7 @@ fn main() -> std::io::Result<()> {
                 let data = m_bam.extract_reads_plup_fast(&chrom, start, end);
 
                 let ret_str = format!(
-                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}",
                     chrom,
                     start,
                     end,
@@ -106,6 +114,7 @@ fn main() -> std::io::Result<()> {
     pbar.set_style(sty.clone());
 
     let mut collected: u64 = 0;
+    // writeln!(file, "#chrom\tstart\tend\tcoverage\th0\th1\th2")?;
     loop {
         select! {
             recv(result_receiver) -> result => {

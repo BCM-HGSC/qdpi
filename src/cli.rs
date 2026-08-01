@@ -17,9 +17,9 @@ pub struct ArgParser {
     #[arg(long)]
     pub reference: Option<std::path::PathBuf>,
 
-    /// Output tsv
+    /// Output bed-like (default: stdout)
     #[arg(short, long)]
-    pub out: std::path::PathBuf,
+    pub out: Option<std::path::PathBuf>,
 
     /// Minimum mapq of reads to consider
     #[arg(long, default_value_t = 5)]
