@@ -7,10 +7,7 @@ Output is a tsv bed-like with columns:
 * chromosome
 * start
 * end
-* data tuple with three values
-  * coverage
-  * list of [position, variant]
-  * list of read-length deltas
-
-The position is relative to start (e.g. `start + position = genomic position`). Variant is a negative number for
-deletions or inserted sequences. SNPs are not recorded.
+* coverage
+* hp0 - comma-separated list of haplotype 0 read lengths.
+* hp1 - comma-separated list of haplotype 1 read lengths.
+* hp2 - comma-separated list of haplotype 2 read lengths.

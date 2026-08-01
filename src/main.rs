@@ -20,7 +20,17 @@ use crossbeam_channel::{select, unbounded, Receiver, Sender};
 use indicatif::{ProgressBar, ProgressStyle};
 
 type InputType = (String, u64, u64);
-type OutputType = (String, u64, u64, String);
+type OutputType = String;
+
+// Joins a slice of isize into a comma-separated string
+fn join_isize(v: &[isize]) -> String {
+    v.iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join(",")
+}
+
+
 
 fn main() -> std::io::Result<()> {
     let args = ArgParser::parse();
@@ -55,15 +65,18 @@ fn main() -> std::io::Result<()> {
                 end += m_args.buffer;
                 let data = m_bam.extract_reads_plup_fast(&chrom, start, end);
 
-                let json_str = match serde_json::to_string(&data) {
-                    Ok(json) => json,
-                    Err(e) => {
-                        eprintln!("Error serializing to JSON: {}", e);
-                        "".to_string()
-                    }
-                };
+                let ret_str = format!(
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                    chrom,
+                    start,
+                    end,
+                    data.0,
+                    join_isize(&data.1[0]),
+                    join_isize(&data.1[1]),
+                    join_isize(&data.1[2]),
+                );
 
-                result_sender.send((chrom, start, end, json_str)).unwrap();
+                result_sender.send(ret_str).unwrap();
             }
         });
     }
@@ -97,8 +110,8 @@ fn main() -> std::io::Result<()> {
         select! {
             recv(result_receiver) -> result => {
                 match result {
-                    Ok((chrom, start, end, json_str)) => {
-                        writeln!(file, "{}\t{}\t{}\t{}", chrom, start, end, json_str)?;
+                    Ok(ret_str) => {
+                        writeln!(file, "{}", ret_str)?;
                         pbar.inc(1);
                         collected += 1;
                         if collected == num_regions {
