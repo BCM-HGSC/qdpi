@@ -76,6 +76,7 @@ impl BamParser {
                 Some(threshold) => threshold < ref_start,
                 None => true,
             });
+
             if si_start >= n {
                 continue;
             }

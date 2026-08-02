@@ -28,6 +28,10 @@ pub struct ArgParser {
     /// Alignments with flag matching this value are ignored
     #[arg(long, default_value_t = 3840)]
     pub mapflag: u16,
+    
+    /// Alignments must be anchored up/down stream Nbp around region to be considered
+    #[arg(long, default_value_t = 200)]
+    pub anchor: u64,
 
     /// Number of threads
     #[arg(long, default_value_t = 1)]
