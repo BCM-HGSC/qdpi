@@ -68,10 +68,18 @@ impl BamParser {
             }
 
             let ref_start = alignment.pos() as u64;
+            // A sub-interval is a left-side candidate only if this read starts
+            // early enough to leave >= `anchor` bp of overhang before the
+            // sub-interval's start, i.e. ref_start <= sub_start - anchor.
+            // Sub-intervals where sub_start < anchor can never satisfy this
+            // for any read (the threshold would be negative), so they're
+            // correctly excluded via the `None` arm.
+            let si_start = sub_intervals.partition_point(|&(s, _)|
+                match s.checked_sub(self.args.anchor) {
+                    Some(threshold) => threshold < ref_start,
+                None => true,
+            });
 
-            // Only sub-intervals starting strictly after ref_start can
-            // possibly be spanned "from the left" by this read.
-            let si_start = sub_intervals.partition_point(|&(s, _)| s <= ref_start);
             if si_start >= n {
                 continue;
             }
@@ -120,7 +128,8 @@ impl BamParser {
             // candidates rather than breaking on the first miss.
             let mut hp: Option<usize> = None;
             for j in si_start..n {
-                if sub_intervals[j].1 < read_pos {
+                let required_end = sub_intervals[j].1.saturating_add(self.args.anchor);
+                if read_pos >= required_end {
                     let hp_val = *hp.get_or_insert_with(|| Self::extract_hp(&alignment));
                     coverage[j] += 1;
                     deltas[j][hp_val].push(diff_acc[j]);
