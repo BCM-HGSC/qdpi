@@ -12,7 +12,7 @@ pub struct ArgParser {
     /// Regions to analyze
     #[arg(long)]
     pub bed: std::path::PathBuf,
-    
+
     /// Reference path (for crams)
     #[arg(long)]
     pub reference: Option<std::path::PathBuf>,
@@ -22,7 +22,7 @@ pub struct ArgParser {
     pub out: Option<std::path::PathBuf>,
 
     /// Minimum mapq of reads to consider
-    #[arg(long, default_value_t = 5)]
+    #[arg(long, default_value_t = 60)]
     pub mapq: u8,
 
     /// Alignments with flag matching this value are ignored
@@ -37,9 +37,9 @@ pub struct ArgParser {
     #[arg(long, default_value_t = false)]
     pub debug: bool,
 
-    /// Buffer around regions to plup
-    #[arg(long, default_value_t = 50)]
-    pub buffer: u64,
+    /// Chunksize for optimized IO - set to a little longer than read-length
+    #[arg(long, default_value_t = 20000)]
+    pub chunksize: u64,
 }
 
 impl ArgParser {
@@ -62,7 +62,7 @@ impl ArgParser {
             error!("--bed is not a file");
             is_ok = false;
         }
-        
+
         if let Some(refname) = &self.reference {
             if !refname.exists() {
                 error!("--reference does not exist");
