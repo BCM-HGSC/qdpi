@@ -12,7 +12,7 @@ pub struct ArgParser {
     /// Regions to analyze
     #[arg(long)]
     pub bed: std::path::PathBuf,
-    
+
     /// Reference path (for crams)
     #[arg(long)]
     pub reference: Option<std::path::PathBuf>,
@@ -28,6 +28,10 @@ pub struct ArgParser {
     /// Alignments with flag matching this value are ignored
     #[arg(long, default_value_t = 3840)]
     pub mapflag: u16,
+
+    /// Only calculate coverage field
+    #[arg(long, default_value_t = false)]
+    pub cov_only: bool,
 
     /// Number of threads
     #[arg(long, default_value_t = 1)]
@@ -62,7 +66,7 @@ impl ArgParser {
             error!("--bed is not a file");
             is_ok = false;
         }
-        
+
         if let Some(refname) = &self.reference {
             if !refname.exists() {
                 error!("--reference does not exist");

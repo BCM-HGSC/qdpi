@@ -42,10 +42,7 @@ fn join_isize(v: &[isize]) -> String {
 ///
 /// Returns `(chrom, min_start, max_end, sub_intervals)` per chunk, where
 /// `sub_intervals` holds the original `(start, end)` pairs in order.
-fn chunk_regions(
-    regions: Vec<(String, u64, u64)>,
-    chunksize: u64,
-) -> Vec<InputType> {
+fn chunk_regions(regions: Vec<(String, u64, u64)>, chunksize: u64) -> Vec<InputType> {
     let mut result: Vec<(String, u64, u64, Vec<(u64, u64)>)> = Vec::new();
 
     for (chrom, start, end) in regions {
@@ -69,8 +66,6 @@ fn chunk_regions(
     result
 }
 
-
-
 fn main() -> std::io::Result<()> {
     let args = ArgParser::parse();
     let level = if args.debug {
@@ -83,7 +78,7 @@ fn main() -> std::io::Result<()> {
         .init();
 
     args.validate();
-    
+
     let mut file: Box<dyn Write> = match args.out {
         Some(ref path) => {
             let file = File::create(path).expect("Error creating output file");
@@ -103,27 +98,38 @@ fn main() -> std::io::Result<()> {
         let receiver = receiver.clone();
         let result_sender = result_sender.clone();
         thread::spawn(move || {
-            let mut m_bam = BamParser::new(m_args.bam.clone(), m_args.reference.clone(), m_args.clone());
+            let mut m_bam =
+                BamParser::new(m_args.bam.clone(), m_args.reference.clone(), m_args.clone());
             for (chrom, start, end, sub_intervals) in receiver.into_iter().flatten() {
-                let data = m_bam.extract_reads_plup_fast(&chrom, start, end, &sub_intervals);
-                
-                let ret_str = data
-                    .iter()
-                    .map(|(sub_start, sub_end, coverage, deltas)| {
-                        format!(
-                            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                            chrom,
-                            sub_start,
-                            sub_end,
-                            coverage,
-                            join_isize(&deltas[0]),
-                            join_isize(&deltas[1]),
-                            join_isize(&deltas[2]),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
+                let ret_str = if m_args.cov_only {
+                    let data =
+                        m_bam.extract_reads_coverage_only(&chrom, start, end, &sub_intervals);
 
+                    data.iter()
+                        .map(|(sub_start, sub_end, coverage)| {
+                            format!("{}\t{}\t{}\t{}", chrom, sub_start, sub_end, coverage)
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                } else {
+                    let data = m_bam.extract_reads_plup_fast(&chrom, start, end, &sub_intervals);
+
+                    data.iter()
+                        .map(|(sub_start, sub_end, coverage, deltas)| {
+                            format!(
+                                "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                                chrom,
+                                sub_start,
+                                sub_end,
+                                coverage,
+                                join_isize(&deltas[0]),
+                                join_isize(&deltas[1]),
+                                join_isize(&deltas[2]),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                };
                 result_sender.send(ret_str).unwrap();
             }
         });
