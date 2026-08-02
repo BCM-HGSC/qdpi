@@ -129,7 +129,7 @@ fn main() -> std::io::Result<()> {
         });
     }
 
-    let chunks = chunk_regions(m_parser.parse(), 10000);
+    let chunks = chunk_regions(m_parser.parse(), args.chunksize);
     let mut num_regions: u64 = 0;
     for region in chunks.into_iter() {
         sender.send(Some(region)).unwrap();
@@ -139,7 +139,7 @@ fn main() -> std::io::Result<()> {
         error!("No variants to be analyzed");
         std::process::exit(1);
     } else {
-        info!("{} regions to be analyzed", num_regions);
+        info!("{} chunks to be analyzed", num_regions);
     }
     // Signal worker threads to exit
     for _ in 0..args.threads {
