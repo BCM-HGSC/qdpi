@@ -29,10 +29,6 @@ pub struct ArgParser {
     #[arg(long, default_value_t = 3840)]
     pub mapflag: u16,
 
-    /// Only calculate coverage field
-    #[arg(long, default_value_t = false)]
-    pub cov_only: bool,
-
     /// Number of threads
     #[arg(long, default_value_t = 1)]
     pub threads: usize,

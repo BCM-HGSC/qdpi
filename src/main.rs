@@ -101,35 +101,25 @@ fn main() -> std::io::Result<()> {
             let mut m_bam =
                 BamParser::new(m_args.bam.clone(), m_args.reference.clone(), m_args.clone());
             for (chrom, start, end, sub_intervals) in receiver.into_iter().flatten() {
-                let ret_str = if m_args.cov_only {
-                    let data =
-                        m_bam.extract_reads_coverage_only(&chrom, start, end, &sub_intervals);
+                let data = m_bam.extract_reads_plup_fast(&chrom, start, end, &sub_intervals);
 
-                    data.iter()
-                        .map(|(sub_start, sub_end, coverage)| {
-                            format!("{}\t{}\t{}\t{}", chrom, sub_start, sub_end, coverage)
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                } else {
-                    let data = m_bam.extract_reads_plup_fast(&chrom, start, end, &sub_intervals);
+                let ret_str = data
+                    .iter()
+                    .map(|(sub_start, sub_end, coverage, deltas)| {
+                        format!(
+                            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                            chrom,
+                            sub_start,
+                            sub_end,
+                            coverage,
+                            join_isize(&deltas[0]),
+                            join_isize(&deltas[1]),
+                            join_isize(&deltas[2]),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
 
-                    data.iter()
-                        .map(|(sub_start, sub_end, coverage, deltas)| {
-                            format!(
-                                "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                                chrom,
-                                sub_start,
-                                sub_end,
-                                coverage,
-                                join_isize(&deltas[0]),
-                                join_isize(&deltas[1]),
-                                join_isize(&deltas[2]),
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                };
                 result_sender.send(ret_str).unwrap();
             }
         });

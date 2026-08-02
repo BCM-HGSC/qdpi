@@ -1,10 +1,6 @@
 use crate::cli::ArgParser;
 
-use rust_htslib::{
-    bam::record::Aux,
-    bam::{self, IndexedReader, Read},
-    bam::ext::BamRecordExtensions,
-};
+use rust_htslib::bam::{self, record::Aux, IndexedReader, Read};
 
 use std::path::PathBuf;
 
@@ -15,7 +11,6 @@ pub struct BamParser {
 
 // Coverage, (hp0, hp1, hp2)
 pub type DataTuple = (u64, u64, u64, [Vec<isize>; 3]);
-type CoverageTuple = (u64, u64, u64); // (sub_start, sub_end, coverage)
 
 impl BamParser {
     // Need the params to be passed here
@@ -152,67 +147,6 @@ impl BamParser {
             Ok(other) => panic!("Unexpected type for HP tag: {:?}", other),
             Err(_) => 0,
         }
-    }
-
-    /// Like `extract_reads_plup_fast`, but only counts reads spanning each
-    /// sub-interval — no indel deltas, no HP splitting. One fetch + one
-    /// CIGAR pass per chunk.
-    pub fn extract_reads_coverage_only(
-        &mut self,
-        chrom: &String,
-        chunk_start: u64,
-        chunk_end: u64,
-        sub_intervals: &[(u64, u64)],
-    ) -> Vec<CoverageTuple> {
-        if let Err(e) = self.bam.fetch((&chrom, chunk_start, chunk_end)) {
-            panic!(
-                "Unable to fetch bam {}:{}-{}\n{:?}",
-                chrom, chunk_start, chunk_end, e
-            )
-        };
-
-        let n = sub_intervals.len();
-        let mut coverage: Vec<u64> = vec![0; n];
-
-        let mut alignment = bam::Record::new();
-
-        while let Some(r) = self.bam.read(&mut alignment) {
-            r.expect("Failed to parse record");
-
-            if alignment.seq().is_empty()
-                || alignment.is_unmapped()
-                || alignment.mapq() < self.args.mapq
-                || (alignment.flags() & self.args.mapflag) != 0
-            {
-                continue;
-            }
-
-            let ref_start = alignment.pos() as u64;
-
-            // Only sub-intervals starting strictly after ref_start can
-            // possibly be spanned "from the left" by this read.
-            let si_start = sub_intervals.partition_point(|&(s, _)| s <= ref_start);
-            if si_start >= n {
-                continue;
-            }
-
-            let read_pos = alignment.reference_end() as u64;
-
-            // Commit coverage for every candidate sub-interval this read
-            // spans end-to-end. Checked over all candidates (not just up
-            // to the first miss) since sub-intervals may nest/overlap.
-            for j in si_start..n {
-                if sub_intervals[j].1 < read_pos {
-                    coverage[j] += 1;
-                }
-            }
-        }
-
-        sub_intervals
-            .iter()
-            .zip(coverage)
-            .map(|((s, e), cov)| (*s, *e, cov))
-            .collect()
     }
 }
 
