@@ -19,7 +19,7 @@ use crate::cli::ArgParser;
 use crossbeam_channel::{select, unbounded, Receiver, Sender};
 use indicatif::{ProgressBar, ProgressStyle};
 
-type InputType = (String, u64, u64);
+type InputType = (String, u64, u64, Vec<(u64, u64)>);
 type OutputType = String;
 
 // Joins a slice of isize into a comma-separated string
@@ -31,6 +31,42 @@ fn join_isize(v: &[isize]) -> String {
         .map(|x| x.to_string())
         .collect::<Vec<String>>()
         .join(",")
+}
+
+/// Chunk sorted BED-like regions by chromosome and proximity.
+///
+/// Entries are merged into the same chunk when they are on the same
+/// chromosome and the gap between the current chunk's rightmost end
+/// and the next entry's start is less than `chunksize`. Overlapping
+/// entries (start <= current max_end) are always merged (distance 0).
+///
+/// Returns `(chrom, min_start, max_end, sub_intervals)` per chunk, where
+/// `sub_intervals` holds the original `(start, end)` pairs in order.
+fn chunk_regions(
+    regions: Vec<(String, u64, u64)>,
+    chunksize: u64,
+) -> Vec<InputType> {
+    let mut result: Vec<(String, u64, u64, Vec<(u64, u64)>)> = Vec::new();
+
+    for (chrom, start, end) in regions {
+        if let Some(last) = result.last_mut() {
+            let same_chrom = last.0 == chrom;
+            // saturating_sub so overlapping/contained intervals (start < max_end)
+            // are treated as distance 0 instead of underflowing.
+            let distance = start.saturating_sub(last.2);
+
+            if same_chrom && distance < chunksize {
+                last.2 = last.2.max(end);
+                last.3.push((start, end));
+                continue;
+            }
+        }
+
+        // Start a new chunk.
+        result.push((chrom, start, end, vec![(start, end)]));
+    }
+
+    result
 }
 
 
@@ -68,29 +104,34 @@ fn main() -> std::io::Result<()> {
         let result_sender = result_sender.clone();
         thread::spawn(move || {
             let mut m_bam = BamParser::new(m_args.bam.clone(), m_args.reference.clone(), m_args.clone());
-            for (chrom, mut start, mut end) in receiver.into_iter().flatten() {
-                start -= m_args.buffer;
-                end += m_args.buffer;
-                let data = m_bam.extract_reads_plup_fast(&chrom, start, end);
-
-                let ret_str = format!(
-                    "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                    chrom,
-                    start,
-                    end,
-                    data.0,
-                    join_isize(&data.1[0]),
-                    join_isize(&data.1[1]),
-                    join_isize(&data.1[2]),
-                );
+            for (chrom, start, end, sub_intervals) in receiver.into_iter().flatten() {
+                let data = m_bam.extract_reads_plup_fast(&chrom, start, end, &sub_intervals);
+                
+                let ret_str = data
+                    .iter()
+                    .map(|(sub_start, sub_end, coverage, deltas)| {
+                        format!(
+                            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                            chrom,
+                            sub_start,
+                            sub_end,
+                            coverage,
+                            join_isize(&deltas[0]),
+                            join_isize(&deltas[1]),
+                            join_isize(&deltas[2]),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
 
                 result_sender.send(ret_str).unwrap();
             }
         });
     }
 
+    let chunks = chunk_regions(m_parser.parse(), 10000);
     let mut num_regions: u64 = 0;
-    for region in m_parser.parse().into_iter() {
+    for region in chunks.into_iter() {
         sender.send(Some(region)).unwrap();
         num_regions += 1;
     }
