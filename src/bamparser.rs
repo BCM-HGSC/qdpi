@@ -2,7 +2,7 @@ use crate::cli::ArgParser;
 
 use rust_htslib::{
     bam::ext::BamRecordExtensions,
-    bam::{IndexedReader, Read},
+    bam::{self, IndexedReader, Read},
     bam::record::{Aux, Cigar}
 };
 
@@ -33,9 +33,10 @@ impl BamParser {
 
         let mut coverage = 0;
         let mut deltas = [Vec::new(), Vec::new(), Vec::new()];
+        let mut alignment = bam::Record::new();
 
-        for alignment in self.bam.records() {
-            let alignment = alignment.expect("Right?");
+        while let Some(r) = self.bam.read(&mut alignment) {
+            r.expect("Failed to parse record");
 
             if alignment.seq().is_empty()
                 || alignment.is_unmapped()
