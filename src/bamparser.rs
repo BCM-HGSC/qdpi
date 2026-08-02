@@ -3,6 +3,7 @@ use crate::cli::ArgParser;
 use rust_htslib::{
     bam::record::Aux,
     bam::{self, IndexedReader, Read},
+    bam::ext::BamRecordExtensions,
 };
 
 use std::path::PathBuf;
@@ -195,19 +196,7 @@ impl BamParser {
                 continue;
             }
 
-            // Walk the CIGAR just far enough to get the reference end,
-            // bailing out early once we've passed chunk_end (no deltas
-            // to accumulate, so no need to process the rest of the read).
-            let mut read_pos = ref_start;
-            for &raw in alignment.raw_cigar() {
-                match raw & 0xf {
-                    0 | 7 | 8 | 2 => read_pos += (raw >> 4) as u64, // ref-consuming ops
-                    _ => {}
-                }
-                if read_pos > chunk_end {
-                    break;
-                }
-            }
+            let read_pos = alignment.reference_end() as u64;
 
             // Commit coverage for every candidate sub-interval this read
             // spans end-to-end. Checked over all candidates (not just up
