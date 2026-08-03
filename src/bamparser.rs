@@ -36,7 +36,6 @@ impl BamParser {
             )
         };
 
-        let anchor = self.args.anchor;
         let n = sub_intervals.len();
         let mut coverage: Vec<u64> = vec![0; n];
         let mut deltas: Vec<[Vec<isize>; 3]> = (0..n)
@@ -51,8 +50,8 @@ impl BamParser {
         let mut alignment = bam::Record::new();
 
         // Nothing past this reference position can matter: the furthest any
-        // sub-interval's right flank can reach is chunk_end + anchor.
-        let scan_limit = chunk_end.saturating_add(self.args.anchor);
+        // sub-interval's right flank can reach is chunk_end + flank.
+        let scan_limit = chunk_end.saturating_add(self.args.flank);
 
         while let Some(r) = self.bam.read(&mut alignment) {
             r.expect("Failed to parse record");
@@ -67,12 +66,12 @@ impl BamParser {
 
             let ref_start = alignment.pos() as u64;
 
-            // Only sub-intervals with >= `anchor` bp of overhang before their
-            // left flank (ref_start <= sub_start - anchor) are candidates at all.
+            // Only sub-intervals with >= `flank` bp of overhang before their
+            // left flank (ref_start <= sub_start - flank) are candidates at all.
             // This is a cheap necessary-but-not-sufficient filter; the real
             // continuity/edit-distance check happens during the CIGAR walk below.
             let si_start =
-                sub_intervals.partition_point(|&(s, _)| match s.checked_sub(self.args.anchor) {
+                sub_intervals.partition_point(|&(s, _)| match s.checked_sub(self.args.flank) {
                     Some(threshold) => threshold < ref_start,
                     None => true,
                 });
@@ -105,14 +104,14 @@ impl BamParser {
                 // Permanently drop sub-intervals whose right flank ends at or
                 // before this op starts -- nothing further in the read can
                 // reach them, since ops only move rightward.
-                while lo < n && sub_intervals[lo].1.saturating_add(anchor) <= op_start {
+                while lo < n && sub_intervals[lo].1.saturating_add(self.args.flank) <= op_start {
                     lo += 1;
                 }
 
                 for j in lo..n {
                     let (core_start, core_end) = sub_intervals[j];
-                    let left_flank_start = core_start.saturating_sub(anchor);
-                    let right_flank_end = core_end.saturating_add(anchor);
+                    let left_flank_start = core_start.saturating_sub(self.args.flank);
+                    let right_flank_end = core_end.saturating_add(self.args.flank);
 
                     if left_flank_start >= op_end {
                         break; // this and all later sub-intervals start even further right
@@ -169,16 +168,16 @@ impl BamParser {
             let mut hp: Option<usize> = None;
             for j in si_start..n {
                 let (_, core_end) = sub_intervals[j];
-                let right_flank_end = core_end.saturating_add(anchor);
+                let right_flank_end = core_end.saturating_add(self.args.flank);
 
                 if read_pos < right_flank_end {
                     continue; // didn't actually reach across the right flank
                 }
 
-                if self.args.anchor > 0 {
-                    // edit_len / anchor < 0.10, done in integers as edit_len*10 < anchor
-                    if left_edit[j] * self.args.max_edits >= self.args.anchor
-                        || right_edit[j] * self.args.max_edits >= self.args.anchor
+                if self.args.flank > 0 {
+                    // edit_len / flank < 0.10, done in integers as edit_len*10 < flank
+                    if left_edit[j] * self.args.max_edits >= self.args.flank
+                        || right_edit[j] * self.args.max_edits >= self.args.flank
                     {
                         continue;
                     }

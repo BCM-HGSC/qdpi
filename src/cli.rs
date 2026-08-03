@@ -29,11 +29,11 @@ pub struct ArgParser {
     #[arg(long, default_value_t = 3840)]
     pub mapflag: u16,
 
-    /// Alignments must be anchored up/down stream Nbp around region to be considered
+    /// Alignments must span up/down stream Nbp flanks around region
     #[arg(long, default_value_t = 200)]
-    pub anchor: u64,
+    pub flank: u64,
 
-    /// Maximum number of edits allowed in anchor regions
+    /// Maximum number of edits allowed in flank regions
     #[arg(long, default_value_t = 10)]
     pub max_edits: u64,
 

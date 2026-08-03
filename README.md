@@ -1,7 +1,7 @@
 Quick Delta and PIleups
 =======================
 
-Over a set of bed regions, extract the coverage, read-length delta, and pileup variant positions.
+Over a set of bed regions, extract the coverage of reads spanning the region and their length delta by HP tag.
 
 Output is a tsv bed-like with columns:
 * chromosome
@@ -19,10 +19,10 @@ Details
 
 Aligned read CIGAR fields from a BAM/CRAM are parsed. Subsequences spanning the bed coordinates are selected and every
 insertion/deletion operation summed to create a "Read Delta". This read delta represents the relative increase/decrease
-of an allele over a region. 
+of allele length over a region. 
 
 In order to ensure that changes observed over a bed-region actually belong into said bed-region, alignments over
-flanking regions around the bed-region are also checked. First, only alignments spanning `--anchor` base-pairs 
-upstream/downstream of the bed-region are considered. Second, only alignments with fewer then `--max-edits` edit 
-operations over the bed-region are considered. The defaults of `--anchor 200` and `--max-edits 10` roughly 
+flanking regions around the bed-region are also checked. First, only alignments spanning `--flank` base-pairs 
+upstream/downstream of the bed-region are considered. Second, only alignments with fewer then `--max-edits` 
+operations over the bed-region are considered. The defaults of `--flank 200` and `--max-edits 10` roughly 
 enforces a maximum flanking-region error rate of 5%
