@@ -34,7 +34,7 @@ pub struct ArgParser {
     pub anchor: u64,
 
     /// Maximum number of edits allowed in anchor regions
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = 10)]
     pub max_edits: u64,
 
     /// Number of threads

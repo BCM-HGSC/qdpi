@@ -24,5 +24,5 @@ of an allele over a region.
 In order to ensure that changes observed over a bed-region actually belong into said bed-region, alignments over
 flanking regions around the bed-region are also checked. First, only alignments spanning `--anchor` base-pairs 
 upstream/downstream of the bed-region are considered. Second, only alignments with fewer then `--max-edits` edit 
-operations over the bed-region are considered. The defaults of `--anchor 200` and `--max-edits 20` roughly 
-enforces a maximum flanking-region error rate of 10%
+operations over the bed-region are considered. The defaults of `--anchor 200` and `--max-edits 10` roughly 
+enforces a maximum flanking-region error rate of 5%
