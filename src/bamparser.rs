@@ -23,30 +23,29 @@ impl BamParser {
     }
 
     pub fn extract_reads_plup_fast(
-            &mut self,
-            chrom: &String,
-            chunk_start: u64,
-            chunk_end: u64,
-            sub_intervals: &[(u64, u64)],
-        ) -> Vec<DataTuple> {
-            if let Err(e) = self.bam.fetch((&chrom, chunk_start, chunk_end)) {
-                panic!(
-                    "Unable to fetch bam {}:{}-{}\n{:?}",
-                    chrom, chunk_start, chunk_end, e
-                )
-            };
+        &mut self,
+        chrom: &String,
+        chunk_start: u64,
+        chunk_end: u64,
+        sub_intervals: &[(u64, u64)],
+    ) -> Vec<DataTuple> {
+        if let Err(e) = self.bam.fetch((&chrom, chunk_start, chunk_end)) {
+            panic!(
+                "Unable to fetch bam {}:{}-{}\n{:?}",
+                chrom, chunk_start, chunk_end, e
+            )
+        };
 
         let anchor = self.args.anchor;
         let n = sub_intervals.len();
         let mut coverage: Vec<u64> = vec![0; n];
-        let mut deltas: Vec<[Vec<isize>; 3]> =
-            (0..n).map(|_| [Vec::new(), Vec::new(), Vec::new()]).collect();
+        let mut deltas: Vec<[Vec<isize>; 3]> = (0..n)
+            .map(|_| [Vec::new(), Vec::new(), Vec::new()])
+            .collect();
 
         // Reused scratch buffers, reset per-read instead of reallocated.
-        let mut diff_acc: Vec<isize> = vec![0; n];   // net indel delta within the core, deletions clipped to the core
-        let mut left_gap: Vec<bool> = vec![false; n];  // a deletion/refskip touched the left flank => not continuous
-        let mut right_gap: Vec<bool> = vec![false; n];
-        let mut left_edit: Vec<u64> = vec![0; n];    // mismatch + insertion bases within the left flank
+        let mut diff_acc: Vec<isize> = vec![0; n]; // net indel delta within the core, deletions clipped to the core
+        let mut left_edit: Vec<u64> = vec![0; n]; // mismatch + insertion bases within the left flank
         let mut right_edit: Vec<u64> = vec![0; n];
 
         let mut alignment = bam::Record::new();
@@ -72,10 +71,11 @@ impl BamParser {
             // left flank (ref_start <= sub_start - anchor) are candidates at all.
             // This is a cheap necessary-but-not-sufficient filter; the real
             // continuity/edit-distance check happens during the CIGAR walk below.
-            let si_start = sub_intervals.partition_point(|&(s, _)| match s.checked_sub(self.args.anchor) {
-                Some(threshold) => threshold < ref_start,
-                None => true,
-            });
+            let si_start =
+                sub_intervals.partition_point(|&(s, _)| match s.checked_sub(self.args.anchor) {
+                    Some(threshold) => threshold < ref_start,
+                    None => true,
+                });
 
             if si_start >= n {
                 continue;
@@ -84,8 +84,6 @@ impl BamParser {
             // Reset scratch state for this read.
             for j in si_start..n {
                 diff_acc[j] = 0;
-                left_gap[j] = false;
-                right_gap[j] = false;
                 left_edit[j] = 0;
                 right_edit[j] = 0;
             }
@@ -125,12 +123,11 @@ impl BamParser {
                             // Deletion / RefSkip: a true gap in the read's sequence.
                             // Any overlap with a flank breaks "continuous" coverage
                             // of that flank outright.
-                            if overlap_len(op_start, op_end, left_flank_start, core_start) > 0 {
-                                left_gap[j] = true;
-                            }
-                            if overlap_len(op_start, op_end, core_end, right_flank_end) > 0 {
-                                right_gap[j] = true;
-                            }
+                            left_edit[j] +=
+                                overlap_len(op_start, op_end, left_flank_start, core_start);
+                            right_edit[j] +=
+                                overlap_len(op_start, op_end, core_end, right_flank_end);
+
                             // Only the portion of the deletion that actually falls
                             // inside the core counts toward the delta -- a deletion
                             // leading into/out of the region is clipped to its true
@@ -154,8 +151,10 @@ impl BamParser {
                             // Mismatch. Requires the aligner to emit extended
                             // CIGAR (=/X); plain 'M' can't be told apart from a
                             // true match without the reference sequence or MD tag.
-                            left_edit[j] += overlap_len(op_start, op_end, left_flank_start, core_start);
-                            right_edit[j] += overlap_len(op_start, op_end, core_end, right_flank_end);
+                            left_edit[j] +=
+                                overlap_len(op_start, op_end, left_flank_start, core_start);
+                            right_edit[j] +=
+                                overlap_len(op_start, op_end, core_end, right_flank_end);
                         }
                         _ => {}
                     }
@@ -175,12 +174,12 @@ impl BamParser {
                 if read_pos < right_flank_end {
                     continue; // didn't actually reach across the right flank
                 }
-                if left_gap[j] || right_gap[j] {
-                    continue; // a deletion/refskip broke continuity over a flank
-                }
+
                 if self.args.anchor > 0 {
                     // edit_len / anchor < 0.10, done in integers as edit_len*10 < anchor
-                    if left_edit[j] * self.args.max_edits >= self.args.anchor || right_edit[j] * self.args.max_edits >= self.args.anchor {
+                    if left_edit[j] * self.args.max_edits >= self.args.anchor
+                        || right_edit[j] * self.args.max_edits >= self.args.anchor
+                    {
                         continue;
                     }
                 }
