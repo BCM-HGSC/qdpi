@@ -44,8 +44,8 @@ impl BamParser {
 
         // Reused scratch buffers, reset per-read instead of reallocated.
         let mut diff_acc: Vec<isize> = vec![0; n]; // net indel delta within the core, deletions clipped to the core
-        let mut left_edit: Vec<u64> = vec![0; n]; // mismatch + insertion bases within the left flank
-        let mut right_edit: Vec<u64> = vec![0; n];
+        let mut left_match: Vec<f32> = vec![0.0; n]; // matched (M/=) reference bases within the left flank
+        let mut right_match: Vec<f32> = vec![0.0; n]; // matched (M/=) reference bases within the right flank
 
         let mut alignment = bam::Record::new();
 
@@ -83,8 +83,8 @@ impl BamParser {
             // Reset scratch state for this read.
             for j in si_start..n {
                 diff_acc[j] = 0;
-                left_edit[j] = 0;
-                right_edit[j] = 0;
+                left_match[j] = 0.0;
+                right_match[j] = 0.0;
             }
 
             let mut read_pos = ref_start;
@@ -118,42 +118,38 @@ impl BamParser {
                     }
 
                     match opcode {
-                        2 | 3 => {
-                            // Deletion / RefSkip: a true gap in the read's sequence.
-                            // Any overlap with a flank breaks "continuous" coverage
-                            // of that flank outright.
-                            left_edit[j] +=
+                        0 | 7 => {
+                            // Match/Equal: bases the read confidently aligns to
+                            // the reference. Note: plain 'M' can't be distinguished
+                            // from a mismatch without extended CIGAR (=/X) or an
+                            // MD tag, so 'M' is optimistically counted as matched.
+                            left_match[j] +=
                                 overlap_len(op_start, op_end, left_flank_start, core_start);
-                            right_edit[j] +=
+                            right_match[j] +=
                                 overlap_len(op_start, op_end, core_end, right_flank_end);
-
-                            // Only the portion of the deletion that actually falls
-                            // inside the core counts toward the delta -- a deletion
-                            // leading into/out of the region is clipped to its true
-                            // overlap with the core.
+                        }
+                        2 | 3 => {
+                            // Deletion / RefSkip: reference bases with no aligned
+                            // read base -- simply excluded from left_match/right_match,
+                            // which drags the matched fraction down implicitly.
                             let core_overlap = overlap_len(op_start, op_end, core_start, core_end);
-                            if core_overlap > 0 {
+                            if core_overlap > 0.0 {
                                 diff_acc[j] -= core_overlap as isize;
                             }
                         }
                         1 => {
-                            // Insertion: point event at `read_pos` (pre-advance).
-                            if read_pos >= left_flank_start && read_pos < core_start {
-                                left_edit[j] += len;
-                            } else if read_pos >= core_end && read_pos < right_flank_end {
-                                right_edit[j] += len;
-                            } else if read_pos >= core_start && read_pos < core_end {
+                            // Insertion: point event at read_pos (pre-advance).
+                            // Doesn't consume reference, so it has no effect on
+                            // flank match coverage -- only affects the core delta.
+                            if read_pos >= core_start && read_pos < core_end {
                                 diff_acc[j] += len as isize;
                             }
+                            // Though I could potentially -1 to the matches because its a little
+                            // noisy?
                         }
                         8 => {
-                            // Mismatch. Requires the aligner to emit extended
-                            // CIGAR (=/X); plain 'M' can't be told apart from a
-                            // true match without the reference sequence or MD tag.
-                            left_edit[j] +=
-                                overlap_len(op_start, op_end, left_flank_start, core_start);
-                            right_edit[j] +=
-                                overlap_len(op_start, op_end, core_end, right_flank_end);
+                            // Mismatch (extended CIGAR only): reference bases
+                            // covered but not matching
                         }
                         _ => {}
                     }
@@ -175,9 +171,8 @@ impl BamParser {
                 }
 
                 if self.args.flank > 0 {
-                    // edit_len / flank < 0.10, done in integers as edit_len*10 < flank
-                    if left_edit[j] * self.args.max_edits >= self.args.flank
-                        || right_edit[j] * self.args.max_edits >= self.args.flank
+                    if left_match[j] / (self.args.flank as f32) < self.args.min_anchor
+                        || right_match[j] / (self.args.flank as f32) < self.args.min_anchor
                     {
                         continue;
                     }
@@ -212,8 +207,8 @@ impl BamParser {
 }
 
 #[inline]
-fn overlap_len(a_start: u64, a_end: u64, b_start: u64, b_end: u64) -> u64 {
+fn overlap_len(a_start: u64, a_end: u64, b_start: u64, b_end: u64) -> f32 {
     let lo = a_start.max(b_start);
     let hi = a_end.min(b_end);
-    hi.saturating_sub(lo)
+    hi.saturating_sub(lo) as f32
 }

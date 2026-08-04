@@ -33,9 +33,9 @@ pub struct ArgParser {
     #[arg(long, default_value_t = 200)]
     pub flank: u64,
 
-    /// Maximum number of edits allowed in flank regions
-    #[arg(long, default_value_t = 10)]
-    pub max_edits: u64,
+    /// Filter alignments that don't match to N% of flanks
+    #[arg(long, default_value_t = 0.90)]
+    pub min_anchor: f32,
 
     /// Number of threads
     #[arg(long, default_value_t = 1)]
