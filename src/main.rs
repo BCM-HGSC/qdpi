@@ -20,18 +20,7 @@ use crossbeam_channel::{select, unbounded, Receiver, Sender};
 use indicatif::{ProgressBar, ProgressStyle};
 
 type InputType = (String, u64, u64, Vec<(u64, u64)>);
-type OutputType = String;
-
-// Joins a slice of isize into a comma-separated string
-fn join_isize(v: &[isize]) -> String {
-    if v.is_empty() {
-        return ".".to_string();
-    }
-    v.iter()
-        .map(|x| x.to_string())
-        .collect::<Vec<String>>()
-        .join(",")
-}
+type OutputType = (String, String);
 
 /// Chunk sorted BED-like regions by chromosome and proximity.
 ///
@@ -79,13 +68,18 @@ fn main() -> std::io::Result<()> {
 
     args.validate();
 
-    let mut file: Box<dyn Write> = match args.out {
+    let mut reg_file: Box<dyn Write> = match args.out {
         Some(ref path) => {
             let file = File::create(path).expect("Error creating output file");
             Box::new(BufWriter::new(file))
         }
         None => Box::new(BufWriter::new(std::io::stdout())),
     };
+
+    let mut seq_file = args.seqs.as_ref().map(|path| {
+        let file = File::create(path).expect("Error creating output file");
+        BufWriter::new(file)
+    });
 
     let mut m_parser = BedParser::new(&args.bed);
 
@@ -101,26 +95,9 @@ fn main() -> std::io::Result<()> {
             let mut m_bam =
                 BamParser::new(m_args.bam.clone(), m_args.reference.clone(), m_args.clone());
             for (chrom, start, end, sub_intervals) in receiver.into_iter().flatten() {
-                let data = m_bam.extract_reads_plup_fast(&chrom, start, end, &sub_intervals);
+                let data = m_bam.extract_reads(&chrom, start, end, &sub_intervals);
 
-                let ret_str = data
-                    .iter()
-                    .map(|(sub_start, sub_end, coverage, deltas)| {
-                        format!(
-                            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                            chrom,
-                            sub_start,
-                            sub_end,
-                            coverage,
-                            join_isize(&deltas[0]),
-                            join_isize(&deltas[1]),
-                            join_isize(&deltas[2]),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
-
-                result_sender.send(ret_str).unwrap();
+                result_sender.send(data).unwrap();
             }
         });
     }
@@ -156,8 +133,12 @@ fn main() -> std::io::Result<()> {
         select! {
             recv(result_receiver) -> result => {
                 match result {
-                    Ok(ret_str) => {
-                        writeln!(file, "{}", ret_str)?;
+                    Ok((reg_str, seq_str)) => {
+                        writeln!(reg_file, "{}", reg_str)?;
+                        if let Some(ref mut out) = seq_file {
+                            writeln!(out, "{}", seq_str)?;
+                        }
+
                         pbar.inc(1);
                         collected += 1;
                         if collected == num_regions {
@@ -174,5 +155,5 @@ fn main() -> std::io::Result<()> {
     }
     pbar.finish();
     info!("finished");
-    file.flush()
+    reg_file.flush()
 }

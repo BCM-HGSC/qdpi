@@ -29,4 +29,7 @@ roughly enforces a 90% similarity between read and flanking-regions. Note that t
 insertions are not counted against the anchor sequence. Furthermore, when two bed-regions are within `--flank` and one
 has a larger deletion, this will prevent the other from collecting coverage.
 
-
+Sequences
+=========
+Sequences can also be pulled with `--seqs output.fa`. The entry names will be formatted as
+`>{chrom}:{start}-{end}_{hap}_{rname}`

@@ -21,6 +21,10 @@ pub struct ArgParser {
     #[arg(short, long)]
     pub out: Option<std::path::PathBuf>,
 
+    /// Output fasta (default: off)
+    #[arg(long)]
+    pub seqs: Option<std::path::PathBuf>,
+
     /// Minimum mapq of reads to consider
     #[arg(long, default_value_t = 60)]
     pub mapq: u8,
